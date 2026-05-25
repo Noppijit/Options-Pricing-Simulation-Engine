@@ -42,3 +42,24 @@ options_pricing_engine/
 ├── main.py                     # Main script สำหรับทดสอบการรันโปรเจกต์
 ├── requirements.txt            # รายชื่อไลบรารีที่จำเป็นต้องใช้
 └── README.md                   # ไฟล์เอกสารของโปรเจกต์นี้
+
+⚙️ การติดตั้งและใช้งาน (Installation & Usage)
+โคลนโปรเจกต์นี้ลงเครื่อง (Clone the repository)
+git clone [https://github.com/YOUR_USERNAME/options_pricing_engine.git](https://github.com/YOUR_USERNAME/options_pricing_engine.git)
+cd options_pricing_engine
+
+ติดตั้งไลบรารีที่จำเป็น (Install dependencies)
+แนะนำให้สร้าง Virtual Environment ก่อน แล้วจึงติดตั้งผ่าน requirements.txt
+pip install -r requirements.txt
+
+รันทดสอบระบบ (Run the engine)
+python main.py
+
+หมายเหตุ: เมื่อโปรแกรมทำงาน จะมีหน้าต่างกราฟเด้งขึ้นมา ให้ปิดหน้าต่างกราฟแรกก่อน โปรแกรมจึงจะแสดงกราฟถัดไป
+เปิดดูผลสรุปแบบ Interactive
+สามารถเปิดไฟล์ notebooks/portfolio_demo.ipynb ผ่าน Jupyter Notebook หรือ VS Code เพื่อดูการนำเสนอผลลัพธ์ทีละขั้นตอน
+
+👨‍💻 ผู้พัฒนา (Author)
+[Noppijit Payab] * LinkedIn: [www.linkedin.com/in/noppijit-payab-482535348]
+Email: [noppijit.p@gmail.com]
+โปรเจกต์นี้สร้างขึ้นเพื่อเป็น Portfolio สำหรับแสดงทักษะด้าน Quantitative Analysis, Data Science และ Python Programming
