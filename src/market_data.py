@@ -1,87 +1,69 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import numpy as np
 
 class MarketDataFeed:
     """คลาสสำหรับดึงข้อมูลราคาหุ้นและ Option จาก Yahoo Finance"""
     
-    def __init__(self, ticker_symbol):
-        self.ticker_symbol = ticker_symbol
-        self.stock = yf.Ticker(ticker_symbol)
-        
-    def get_spot_price(self):
-        """ดึงราคาหุ้นปัจจุบัน"""
-        data = self.stock.history(period="1d")
-        if not data.empty:
-            return data['Close'].iloc[-1]
-        return None
-        
-    def get_options_data(self):
-        """ดึงข้อมูล Options ทั้งหมดของหุ้นตัวนี้"""
-        # ดูวันที่หมดอายุทั้งหมดที่มีให้เทรด
-        expirations = self.stock.options
-        if not expirations:
-            print("ไม่พบข้อมูล Options สำหรับหุ้นตัวนี้")
-            return None
-            
-        # เลือกวันหมดอายุที่ใกล้ที่สุด
-        nearest_expiry = expirations[0]
-        opt_chain = self.stock.option_chain(nearest_expiry)
-        
-        # คำนวณ Time to Maturity (T) เป็นหน่วยปี
-        expiry_date = datetime.strptime(nearest_expiry, '%Y-%m-%d')
-        days_to_expiry = (expiry_date - datetime.now()).days
-        # ป้องกันกรณีหมดอายุวันนี้ (T=0) จะคำนวณ BSM ไม่ได้
-        T = max(days_to_expiry / 365.0, 0.0027) # ให้ขั้นต่ำคือ 1 วัน
-        
-        print(f"ดึงข้อมูล {self.ticker_symbol} หมดอายุวันที่ {nearest_expiry} (T = {T:.4f} ปี)")
-        
-        return {
-            'T': T,
-            'calls': opt_chain.calls,
-            'puts': opt_chain.puts
-        }
-    
     @staticmethod
     def get_portfolio_options(tickers_list):
-        """ดึงข้อมูล Options ของหุ้นหลายๆ ตัวพร้อมกัน แล้วมัดรวมเป็น DataFrame เดียว"""
+        """ดึงข้อมูล Options ของหุ้นหลายๆ ตัวพร้อมกัน พร้อมระบบ Fallback ป้องกันเว็บพัง"""
         all_options = []
         
         for ticker in tickers_list:
             stock = yf.Ticker(ticker)
             
-            # ดึงราคา Spot
-            hist = stock.history(period="1d")
-            if hist.empty:
-                continue
-            spot_price = hist['Close'].iloc[-1]
-            
-            # ดึงวันหมดอายุ
-            expirations = stock.options
-            if not expirations:
-                continue
+            try:
+                # 1. พยายามดึงข้อมูลจริงจากตลาด
+                hist = stock.history(period="1d")
+                if hist.empty:
+                    continue
+                spot_price = hist['Close'].iloc[-1]
                 
-            nearest_expiry = expirations[0] # เอาซีรีส์ที่ใกล้หมดอายุที่สุด
-            opt_chain = stock.option_chain(nearest_expiry)
-            
-            # คำนวณ Time to Maturity (T)
-            expiry_date = datetime.strptime(nearest_expiry, '%Y-%m-%d')
-            T = max((expiry_date - datetime.now()).days / 365.0, 0.0027)
-            
-            # เอาเฉพาะ Call Options มาวิเคราะห์
-            calls = opt_chain.calls.copy()
-            calls['Ticker'] = ticker
-            calls['Spot'] = spot_price
-            calls['T'] = T
-            
-            all_options.append(calls)
+                expirations = stock.options
+                if not expirations:
+                    continue
+                    
+                nearest_expiry = expirations[0] 
+                opt_chain = stock.option_chain(nearest_expiry)
+                
+                expiry_date = datetime.strptime(nearest_expiry, '%Y-%m-%d')
+                T = max((expiry_date - datetime.now()).days / 365.0, 0.0027)
+                
+                calls = opt_chain.calls.copy()
+                calls['Ticker'] = ticker
+                calls['Spot'] = spot_price
+                calls['T'] = T
+                
+                all_options.append(calls)
+                
+            except Exception as e:
+                # 2. ระบบ Fallback: หากโดน Yahoo บล็อค (Rate Limit) ให้สร้างข้อมูลจำลองแทน
+                print(f"⚠️ Yahoo Finance บล็อคการดึงข้อมูล {ticker}: {e}")
+                mock_calls = MarketDataFeed._generate_mock_options(ticker)
+                all_options.append(mock_calls)
             
         if not all_options:
             return None
             
-        # รวม DataFrame ของทุกหุ้นเข้าด้วยกัน
         portfolio_df = pd.concat(all_options, ignore_index=True)
-        
-        # กรองเอาเฉพาะข้อมูลที่มี Volatility มากกว่า 0 เพื่อป้องกัน Error
         portfolio_df = portfolio_df[portfolio_df['impliedVolatility'] > 0]
         return portfolio_df
+
+    @staticmethod
+    def _generate_mock_options(ticker):
+        """สร้างข้อมูล Options จำลองเสมือนจริง เพื่อโชว์ใน Portfolio กรณี API ล่ม"""
+        # ล็อก seed ให้ผลลัพธ์คงที่ตามชื่อหุ้น
+        np.random.seed(abs(hash(ticker)) % 10000) 
+        spot = np.random.uniform(100, 300)
+        strikes = np.linspace(spot * 0.8, spot * 1.2, 20) # สร้าง Strike 20 ระดับ
+        
+        return pd.DataFrame({
+            'strike': strikes,
+            'lastPrice': np.maximum(spot - strikes, 0) + np.random.uniform(0.5, 3.0, 20),
+            'impliedVolatility': np.random.uniform(0.15, 0.50, 20),
+            'Ticker': ticker + " (Mock)", # เติมคำว่า Mock ให้รู้ว่าเป็นข้อมูลจำลอง
+            'Spot': spot,
+            'T': 30 / 365.0 # สมมติว่าเหลือ 30 วันหมดอายุ
+        })
