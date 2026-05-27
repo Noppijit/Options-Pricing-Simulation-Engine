@@ -47,3 +47,24 @@ options_pricing_engine/
 ├── main.py                     # Script สำหรับรันทดสอบอัลกอริทึมหลังบ้าน
 ├── requirements.txt            # รายชื่อไลบรารีที่จำเป็นสำหรับการ Deploy
 └── README.md                   # ไฟล์เอกสารของโปรเจกต์นี้
+
+⚙️ การติดตั้งและใช้งาน (Installation & Usage)
+1. โคลนโปรเจกต์นี้ลงเครื่อง (Clone the repository)
+git clone [https://github.com/Noppijit/Options-Pricing-Simulation-Engine](https://github.com/Noppijit/Options-Pricing-Simulation-Engine.git)
+cd options_pricing_engine
+
+2. ติดตั้งไลบรารีที่จำเป็น (Install dependencies)
+pip install -r requirements.txt
+
+3. เปิดใช้งาน Web Dashboard (Launch the Platform)
+streamlit run app.py
+
+4. ทดสอบความถูกต้องของโมเดลทางคณิตศาสตร์
+python main.py
+
+👨‍💻 ผู้พัฒนา (Author)
+Noppijit Payab
+LinkedIn: www.linkedin.com/in/noppijit-payab-482535348
+Email: noppijit.p@gmail.com
+
+โปรเจกต์นี้สร้างขึ้นเพื่อเป็น Portfolio สำหรับแสดงทักษะระดับสูงด้าน Quantitative Analysis, Financial Engineering, Risk Management และ Python Programming
