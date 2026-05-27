@@ -1,50 +1,50 @@
+import pandas as pd
 from src.market_data import MarketDataFeed
-from src.advanced_models import AdvancedPricer
+from src.stress_test import PortfolioStressTester
 
-def main():
-    print("=== ดึงข้อมูล Options ของจริงจากตลาด (Live Data) ===")
+def test_portfolio_stress():
+    print("=== 🚨 Portfolio Stress Testing (Scenario Analysis) ===")
     
-    # 1. กำหนดชื่อหุ้น (ตัวอย่าง: AAPL)
-    symbol = "AAPL"
-    data_feed = MarketDataFeed(symbol)
+    # 1. สร้างพอร์ตจำลองโดยดึงข้อมูลจริงของบิ๊กเทค 3 ทหารเสือ
+    tickers = ["AAPL", "MSFT", "NVDA"]
+    print(f"กำลังดึงข้อมูล Options ของ {tickers} จากตลาดจริง...")
     
-    # 2. ดึงราคาปัจจุบัน
-    spot_price = data_feed.get_spot_price()
-    if spot_price is None:
-        print("ไม่สามารถดึงข้อมูลราคาหุ้นได้")
+    portfolio_df = MarketDataFeed.get_portfolio_options(tickers)
+    
+    if portfolio_df is None or portfolio_df.empty:
+        print("ไม่สามารถสร้างพอร์ตโฟลิโอได้")
         return
         
-    print(f"ราคาหุ้น {symbol} ปัจจุบัน: ${spot_price:.2f}")
+    # สุ่มเลือกมาแค่หุ้นละ 5 สัญญาเพื่อไม่ให้ผลลัพธ์ยาวเกินไป
+    portfolio_df = portfolio_df.groupby('Ticker').head(5).reset_index(drop=True)
     
-    # 3. ดึงกระดาน Options
-    opt_data = data_feed.get_options_data()
-    if opt_data:
-        T = opt_data['T']
-        r = 0.05 # สมมติดอกเบี้ยไร้ความเสี่ยง 5%
-        
-        # เลือกดู Call Options ของจริง 5 แถวแรก
-        calls = opt_data['calls'].head(5)
-        
-        print("\n=== วิเคราะห์ Implied Volatility (IV) ===")
-        print(f"{'Strike':<10} | {'Market Price':<15} | {'IV (Yahoo)':<15} | {'IV (Our Engine)':<15}")
-        print("-" * 60)
-        
-        for index, row in calls.iterrows():
-            K = row['strike']
-            market_price = row['lastPrice']
-            yahoo_iv = row['impliedVolatility']
-            
-            # คำนวณ IV ด้วย Engine ของเรา
-            our_iv = AdvancedPricer.implied_volatility(
-                market_price=market_price, 
-                S=spot_price, 
-                K=K, 
-                T=T, 
-                r=r, 
-                option_type='call'
-            )
-            
-            print(f"{K:<10.2f} | ${market_price:<14.2f} | {yahoo_iv*100:>8.2f}%      | {our_iv*100:>8.2f}%")
+    # 2. เอาพอร์ตเข้าเครื่องจำลองวิกฤต
+    tester = PortfolioStressTester(portfolio_df)
+    
+    # 3. สถานการณ์ที่ 1: ตลาดพังพินาศ (Market Crash)
+    # หุ้นตก 20% (-0.20) แต่ความผันผวนพุ่งทะลุเพดาน 50% (+0.50)
+    crash_result = tester.apply_scenario(spot_shock_pct=-0.20, vol_shock_pct=0.50, scenario_name="Market Crash (-20% Spot, +50% Vol)")
+    
+    print("\n💥 สถานการณ์: ตลาดหุ้นร่วงหนัก 20% และความผันผวนพุ่ง 50%")
+    print(crash_result[['Ticker', 'strike', 'Base_Price', 'Shocked_Price', 'PnL ($)']].to_string())
+    
+    total_loss = crash_result['PnL ($)'].sum()
+    print(f"\n📉 มูลค่าพอร์ตโฟลิโอเปลี่ยนแปลงรวม (Total PnL): ${total_loss:,.2f}")
+    
+    # 4. สถานการณ์ที่ 2: สร้าง Risk Matrix เพื่อทำ Heatmap
+    print("\n📊 กำลังสร้าง Risk Matrix (Spot vs Volatility)...")
+    spot_shocks = [-0.20, -0.10, 0.0, 0.10, 0.20]  # หุ้นตก 20% ไปจนถึงขึ้น 20%
+    vol_shocks = [0.0, 0.20, 0.50]                 # ความผันผวนคงที่ ไปจนถึงพุ่ง 50%
+    
+    matrix_df = tester.generate_risk_matrix(spot_shocks, vol_shocks)
+    
+    # จัดรูปทรงตาราง (Pivot Table) ให้ดูง่าย
+    pivot_matrix = matrix_df.pivot(index='Spot_Shock', columns='Vol_Shock', values='Total_Portfolio_PnL')
+    pivot_matrix.index = [f"{x*100:+.0f}%" for x in pivot_matrix.index]
+    pivot_matrix.columns = [f"{x*100:+.0f}%" for x in pivot_matrix.columns]
+    
+    print("\n🔥 ตารางความเสี่ยง (PnL Matrix: แนวนอน=Vol Shock, แนวตั้ง=Spot Shock):")
+    print(pivot_matrix.to_string())
 
 if __name__ == "__main__":
-    main()
+    test_portfolio_stress()

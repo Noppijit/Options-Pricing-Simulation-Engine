@@ -67,3 +67,45 @@ class MarketDataFeed:
             'Spot': spot,
             'T': 30 / 365.0 # สมมติว่าเหลือ 30 วันหมดอายุ
         })
+    
+    @staticmethod
+    def get_volatility_surface(ticker, max_expirations=5):
+        """ดึงข้อมูล Options หลายๆ วันหมดอายุ เพื่อสร้าง 3D Volatility Surface"""
+        try:
+            stock = yf.Ticker(ticker)
+            expirations = stock.options
+            
+            if not expirations:
+                return None
+                
+            surface_data = []
+            # กวาดข้อมูล 5 วันหมดอายุแรก (เพื่อความรวดเร็ว)
+            for exp in expirations[:max_expirations]:
+                opt = stock.option_chain(exp)
+                calls = opt.calls
+                
+                expiry_date = datetime.strptime(exp, '%Y-%m-%d')
+                T = max((expiry_date - datetime.now()).days / 365.0, 0.0027)
+                
+                calls['T'] = T
+                surface_data.append(calls[['strike', 'T', 'impliedVolatility']])
+                
+            df = pd.concat(surface_data, ignore_index=True)
+            return df[df['impliedVolatility'] > 0] # กรองค่าที่ผิดปกติออก
+            
+        except Exception as e:
+            print(f"⚠️ ใช้ข้อมูลจำลองสำหรับ 3D Surface เนื่องจาก: {e}")
+            # ระบบ Fallback จำลองพื้นผิว 3 มิติ (Volatility Smile)
+            import numpy as np
+            strikes = np.linspace(80, 120, 20)
+            times = np.linspace(0.1, 2.0, 5)
+            S_grid, T_grid = np.meshgrid(strikes, times)
+            
+            # สร้างสมการรอยยิ้ม (Strike ไกลๆ Vol จะสูงขึ้น)
+            IV_grid = 0.15 + 0.0005 * (S_grid - 100)**2 + 0.02 * T_grid
+            
+            return pd.DataFrame({
+                'strike': S_grid.flatten(),
+                'T': T_grid.flatten(),
+                'impliedVolatility': IV_grid.flatten()
+            })
